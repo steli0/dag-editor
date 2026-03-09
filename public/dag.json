@@ -1,0 +1,124 @@
+{
+  "metadata": {
+    "version": "1.0-dummy",
+    "paymentType": "DUMMY"
+  },
+  "pages": [
+    {
+      "id": "dummy_page_1",
+      "description": "Dummy Page 1",
+      "dependsOn": [],
+      "questions": [
+        "dummy_question_1",
+        "dummy_question_2"
+      ]
+    },
+    {
+      "id": "dummy_page_2",
+      "description": "Dummy Page 2",
+      "dependsOn": [
+        "dummy_page_1"
+      ],
+      "questions": [
+        "dummy_question_3"
+      ],
+      "condition": [
+        "dummy_condition_1"
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "dummy_question_1",
+      "description": "This is dummy question 1. Yes or No?",
+      "edges": [
+        "dummy_edge_1_to_2",
+        "dummy_edge_1_to_3"
+      ],
+      "field": "dummy_yes_no_field"
+    },
+    {
+      "id": "dummy_question_2",
+      "description": "This is dummy question 2, reached from question 1 if 'Yes'.",
+      "edges": [],
+      "field": "dummy_text_field"
+    },
+    {
+      "id": "dummy_question_3",
+      "description": "This is dummy question 3, reached from question 1 if 'No'.",
+      "edges": [],
+      "field": "dummy_ok_field"
+    }
+  ],
+  "edges": [
+    {
+      "id": "dummy_edge_1_to_2",
+      "child": "dummy_question_2",
+      "condition": [
+        "dummy_condition_q1_yes"
+      ]
+    },
+    {
+      "id": "dummy_edge_1_to_3",
+      "child": "dummy_question_3",
+      "condition": [
+        "dummy_condition_q1_no"
+      ]
+    }
+  ],
+  "conditions": [
+    {
+      "id": "dummy_condition_1",
+      "metadata": {
+        "jobTypes": ["DUMMY_JOB_1", "DUMMY_JOB_2"]
+      }
+    },
+    {
+      "id": "dummy_condition_q1_yes",
+      "linkedQuestion": "dummy_question_1",
+      "value": "Yes"
+    },
+    {
+      "id": "dummy_condition_q1_no",
+      "linkedQuestion": "dummy_question_1",
+      "value": "No"
+    }
+  ],
+  "fields": [
+    {
+      "id": "dummy_text_field",
+      "type": "text"
+    },
+    {
+      "id": "dummy_yes_no_field",
+      "type": "option",
+      "options": "dummy_yes_no_options"
+    },
+    {
+      "id": "dummy_ok_field",
+      "type": "option",
+      "options": "dummy_ok_options"
+    }
+  ],
+  "options": [
+    {
+      "name": "dummy_yes_no_options",
+      "choices": [
+        {
+          "name": "Yes"
+        },
+        {
+          "name": "No"
+        }
+      ]
+    },
+    {
+      "name": "dummy_ok_options",
+      "choices": [
+        {
+          "name": "OK"
+        }
+      ]
+    }
+  ]
+}
