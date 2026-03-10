@@ -1,4 +1,5 @@
 import { MarkerType } from "@xyflow/react";
+import dagre from "dagre";
 
 export function buildGraph(data, selectedPageId = null) {
   const nodes = [];
@@ -24,12 +25,13 @@ export function buildGraph(data, selectedPageId = null) {
 
   const formatValue = (value, compact = false) => {
     if (Array.isArray(value)) {
+      const mapped = value.map((item) => formatValue(item, compact));
       if (compact) {
-        if (value.length === 0) return "[]";
-        if (value.length <= 2) return `[${value.join(", ")}]`;
-        return `[${value[0]}, ${value[1]}, +${value.length - 2}]`;
+        if (mapped.length === 0) return "[]";
+        if (mapped.length <= 2) return `[${mapped.join(", ")}]`;
+        return `[${mapped[0]}, ${mapped[1]}, +${mapped.length - 2}]`;
       }
-      return `[${value.join(", ")}]`;
+      return `[${mapped.join(", ")}]`;
     }
 
     if (value && typeof value === "object") {
@@ -229,73 +231,74 @@ export function layoutGraph(graph, options = {}) {
     minWidth = 1800,
     minHeight = 1100,
     widthPadding = 420,
-    heightPadding = 340
+    heightPadding = 340,
+    dagreDirection = "TB",
+    dagreRanker = "network-simplex",
+    dagreAlign = "UL",
+    pageStartMinlen = 2,
+    questionEdgeMinlen = 2,
+    implicitNextMinlen = 1,
+    defaultMinlen = 1,
+    edgeWeightExplicit = 2,
+    edgeWeightImplicitNext = 6,
+    edgeWeightDefault = 2
   } = options;
 
-  const incoming = new Map(graph.nodes.map((n) => [n.id, 0]));
-  const outgoing = new Map(graph.nodes.map((n) => [n.id, []]));
+  const dag = new dagre.graphlib.Graph();
+  dag.setDefaultEdgeLabel(() => ({}));
+  dag.setGraph({
+    rankdir: dagreDirection,
+    align: dagreAlign,
+    ranker: dagreRanker,
+    ranksep: Math.max(120, spacingX),
+    nodesep: Math.max(80, spacingY * 0.7),
+    edgesep: Math.max(40, spacingY * 0.35),
+    marginx: offsetX,
+    marginy: offsetY
+  });
+
+  const nodeSizeById = new Map();
+  for (const node of graph.nodes) {
+    const width = node.type === "page" ? 300 : 270;
+    const height = node.type === "page" ? 130 : node.hasConditionalParent ? 108 : 96;
+    nodeSizeById.set(node.id, { width, height });
+    dag.setNode(node.id, { width, height });
+  }
 
   for (const link of graph.links) {
-    incoming.set(link.target, (incoming.get(link.target) || 0) + 1);
-    outgoing.get(link.source)?.push(link.target);
+    let minlen = defaultMinlen;
+    if (link.kind === "pageStart") minlen = pageStartMinlen;
+    if (link.kind === "implicitNext") minlen = implicitNextMinlen;
+    if (link.kind === "questionEdge") minlen = questionEdgeMinlen;
+
+    let weight = edgeWeightDefault;
+    if (link.kind === "implicitNext") weight = edgeWeightImplicitNext;
+    if (link.kind === "questionEdge") weight = edgeWeightExplicit;
+
+    dag.setEdge(link.source, link.target, {
+      minlen,
+      weight
+    });
   }
 
-  const queue = [];
-  const layer = new Map();
+  dagre.layout(dag);
 
-  for (const node of graph.nodes) {
-    if ((incoming.get(node.id) || 0) === 0) {
-      queue.push(node.id);
-      layer.set(node.id, 0);
-    }
-  }
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    const currentLayer = layer.get(current) || 0;
-    for (const target of outgoing.get(current) || []) {
-      const nextLayer = Math.max(layer.get(target) || 0, currentLayer + 1);
-      layer.set(target, nextLayer);
-      incoming.set(target, (incoming.get(target) || 1) - 1);
-      if ((incoming.get(target) || 0) === 0) {
-        queue.push(target);
-      }
-    }
-  }
-
-  for (const node of graph.nodes) {
-    if (!layer.has(node.id)) layer.set(node.id, 0);
-  }
-
-  const columns = new Map();
-  for (const node of graph.nodes) {
-    const col = layer.get(node.id) || 0;
-    if (!columns.has(col)) columns.set(col, []);
-    columns.get(col).push(node);
-  }
-
-  const positionedNodes = [];
-  const xGap = spacingX;
-  const yGap = spacingY;
-
-  const sortedColumns = [...columns.keys()].sort((a, b) => a - b);
-  for (const col of sortedColumns) {
-    const colNodes = columns.get(col);
-    colNodes.sort((a, b) => a.id.localeCompare(b.id));
-    for (let row = 0; row < colNodes.length; row++) {
-      const node = colNodes[row];
-      positionedNodes.push({
-        ...node,
-        x: offsetX + col * xGap,
-        y: offsetY + row * yGap
-      });
-    }
-  }
+  const positionedNodes = graph.nodes.map((node) => {
+    const nodeLayout = dag.node(node.id);
+    const size = nodeSizeById.get(node.id) || { width: 260, height: 96 };
+    return {
+      ...node,
+      x: (nodeLayout?.x || 0) - size.width / 2,
+      y: (nodeLayout?.y || 0) - size.height / 2
+    };
+  });
 
   const byId = new Map(positionedNodes.map((n) => [n.id, n]));
-  const width = Math.max(minWidth, sortedColumns.length * xGap + widthPadding);
-  const maxRows = Math.max(1, ...[...columns.values()].map((c) => c.length));
-  const height = Math.max(minHeight, maxRows * yGap + heightPadding);
+  const maxX = Math.max(0, ...positionedNodes.map((n) => n.x + (nodeSizeById.get(n.id)?.width || 260)));
+  const maxY = Math.max(0, ...positionedNodes.map((n) => n.y + (nodeSizeById.get(n.id)?.height || 96)));
+
+  const width = Math.max(minWidth, maxX + widthPadding);
+  const height = Math.max(minHeight, maxY + heightPadding);
 
   return { nodes: positionedNodes, links: graph.links, byId, width, height };
 }
@@ -333,7 +336,7 @@ export function toReactFlowElements(layoutedGraph) {
       conditionLongValues: link.conditionLongValues || [],
       conditionDetails: link.conditionDetails || []
     },
-    type: "smoothstep",
+    type: "fixedLabelEdge",
     markerEnd: {
       type: MarkerType.ArrowClosed,
       width: 18,
@@ -345,18 +348,7 @@ export function toReactFlowElements(layoutedGraph) {
       strokeWidth: (link.conditionValues || []).length > 0 ? 2.6 : 2
     },
     labelStyle:
-      (link.conditionValues || []).length > 0 ? { fontSize: 11, fontWeight: 700, fill: "#7c2d12" } : {},
-    labelShowBg: (link.conditionValues || []).length > 0,
-    labelBgPadding: [8, 4],
-    labelBgBorderRadius: 8,
-    labelBgStyle:
-      (link.conditionValues || []).length > 0
-        ? {
-            fill: "#fff7ed",
-            stroke: "#f59e0b",
-            strokeWidth: 1
-          }
-        : undefined
+      (link.conditionValues || []).length > 0 ? { fontSize: 11, fontWeight: 700, fill: "#7c2d12" } : {}
   }));
 
   return { nodes, edges };

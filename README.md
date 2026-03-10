@@ -28,6 +28,14 @@ To add another DAG file to the dropdown:
 - Page conditions rendered as pills on page nodes
 - Edge conditions rendered in styled labels over connections
 - Child questions reached by conditional edges are styled differently
+- Inspector allows editing selected page/question/configured edge fields
+- Quick graph growth actions in inspector:
+- Add Start Question on a page
+- Add Parent Question / Add Child Question on a question
+- Delete selected question/configured edge with data-consistent updates
+- Export current edited DAG as JSON (`*-edited.json`)
+- Layout preset selector (`Balanced`, `Tree`, `Compact`) powered by Dagre
+- Orientation selector (`Vertical` / `Horizontal`) with matching edge handle direction
 
 ## Structure
 
